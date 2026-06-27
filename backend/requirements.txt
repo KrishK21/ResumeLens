@@ -1,0 +1,24 @@
+# ResumeLens backend dependencies
+# Install with:  pip install -r requirements.txt   (inside a virtualenv)
+
+# --- Web framework (added in Step 3) ---
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20        # file uploads
+
+# --- Document engine (Step 2 - working now) ---
+python-docx==1.1.2              # in-place .docx editing
+pdfplumber==0.11.4             # selectable-text verification / PDF extraction
+
+# --- LLM (added in Step 3) ---
+anthropic==0.42.0              # Claude API client
+
+# --- Config / validation ---
+pydantic==2.10.4
+pydantic-settings==2.7.0       # load settings from .env safely
+python-dotenv==1.0.1
+
+# NOTE: LibreOffice is a SYSTEM dependency (not pip). Install separately:
+#   Ubuntu/Debian:  sudo apt-get install -y libreoffice
+#   macOS:          brew install --cask libreoffice
+#   Windows:        download from libreoffice.org
