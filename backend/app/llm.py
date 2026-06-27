@@ -181,6 +181,27 @@ class RewrittenBullet:
     def to_dict(self) -> dict:
         return asdict(self)
 
+    def version(self, tone: str) -> str:
+        """
+        Return the chosen rewrite by tone name.
+          tone="conservative" -> conservative text
+          tone="balanced"     -> balanced text
+          tone="original"     -> the untouched original (user kept their own)
+        Falls back to the original on any unknown tone.
+        """
+        return {
+            "conservative": self.conservative,
+            "balanced": self.balanced,
+            "original": self.original,
+        }.get(tone.lower(), self.original)
+
+    def keywords_for(self, tone: str) -> list[str]:
+        """Keywords incorporated by the chosen tone (empty for 'original')."""
+        return {
+            "conservative": self.keywords_used_conservative,
+            "balanced": self.keywords_used_balanced,
+        }.get(tone.lower(), [])
+
 
 _REWRITE_SYSTEM = (
     "You are an expert resume writer optimizing bullet points to pass AI/ATS "
