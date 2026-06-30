@@ -59,9 +59,8 @@ ResumeLens/
 ├── backend/
 │   ├── app/
 │   │   └── document_engine.py   # ✅ core engine (working)
-│   ├── requirements.txt
-│   ├── .env.example             # template (safe to commit)
-│   └── .env                     # YOUR secrets (gitignored)
+│   ├── requirements.txt        
+│   └── .env                     # secrets (gitignored)
 ├── frontend/                    # Next.js app (added in Step 5)
 ├── .gitignore                   # keeps secrets & resumes out of git
 └── README.md
@@ -69,7 +68,7 @@ ResumeLens/
 
 ## Security
 
-- **No secrets in git.** `.env` is gitignored; only `.env.example` is committed.
+- **No secrets in git.** `.env` is gitignored; only
 - **No personal data in git.** `*.docx` / `*.pdf` / `uploads/` are gitignored so
   real resumes (with names, phones, emails) never enter history.
 - API keys are scoped per-project with a spend cap set in the Anthropic Console.
