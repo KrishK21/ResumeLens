@@ -66,7 +66,7 @@ ResumeLens/
 │   │   └── LLM.py
 │   ├── requirements.txt        
 │   └── .env                     # secrets (gitignored)
-├── frontend/                    # Next.js app (added in Step 5)
+├── frontend/                    # Next.js app 
 ├── .gitignore                   # keeps secrets & resumes out of git
 └── README.md
 ```
@@ -81,7 +81,7 @@ ResumeLens/
 ## Status
 
 - [x] **Step 2 — Document engine** (bullet swap + selectable-PDF export). Proven.
-- [ ] Step 3 — LLM integration (keyword extraction + bullet rewrite)
+- [x] Step 3 — LLM integration (keyword extraction + bullet rewrite)
 - [ ] Step 4 — FastAPI backend
 - [ ] Step 5 — Next.js UI
 - [ ] Step 6 — Auth, storage, deploy
