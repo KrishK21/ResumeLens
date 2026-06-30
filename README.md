@@ -59,6 +59,11 @@ ResumeLens/
 ├── backend/
 │   ├── app/
 │   │   └── document_engine.py   # ✅ core engine (working)
+│   │   └── config.py
+│   │   └── main.pu
+│   │   └── schemas.py
+│   │   └── store.py
+│   │   └── LLM.py
 │   ├── requirements.txt        
 │   └── .env                     # secrets (gitignored)
 ├── frontend/                    # Next.js app (added in Step 5)
