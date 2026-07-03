@@ -271,3 +271,61 @@ def rewrite_bullet(bullet: str, keywords: list[str]) -> RewrittenBullet:
         keywords_used_balanced=data.get("keywords_used_balanced", []),
         fabrication_check=data.get("fabrication_check", "none"),
     )
+
+
+# --------------------------------------------------------------------------- #
+#  Bullet shortening (used by the one-page fit engine)
+# --------------------------------------------------------------------------- #
+
+_SHORTEN_SYSTEM = (
+    "You compress a single resume bullet to fit a length budget WITHOUT lying "
+    "and without dropping important keywords.\n\n"
+    "ABSOLUTE RULES:\n"
+    "1. Use ONLY facts already in the bullet. Never add tools, numbers, or claims.\n"
+    "2. Preserve concrete keywords (technologies, languages, metrics/percentages) "
+    "as much as possible — trim filler words, not signal.\n"
+    "3. Keep it a single grammatical bullet, action-verb first.\n"
+    "4. Aim at or under the target character count, but never truncate mid-thought."
+)
+
+_SHORTEN_INSTRUCTIONS = """Shorten this resume bullet to about __TARGET__ characters or fewer.
+
+BULLET:
+\"\"\"__BULLET__\"\"\"
+
+Keep every technology, language, and metric you can; cut filler. Return ONLY a
+JSON object:
+{
+  "shortened": "the shortened bullet text",
+  "kept_keywords": ["important terms you preserved"],
+  "fabrication_check": "none"
+}"""
+
+
+def shorten_bullet(text: str, target_chars: int) -> str:
+    """
+    Rewrite a bullet to <= ~target_chars while staying truthful and keyword-dense.
+    Returns the shortened text (falls back to the original on any parse issue).
+    Signature matches what fit_engine.fit_to_one_page expects for shorten_fn.
+    """
+    if len(text) <= target_chars:
+        return text
+    s = get_settings()
+    content = (
+        _SHORTEN_INSTRUCTIONS
+        .replace("__TARGET__", str(target_chars))
+        .replace("__BULLET__", text)
+    )
+    try:
+        msg = _client().messages.create(
+            model=s.rewrite_model,
+            max_tokens=512,
+            system=_SHORTEN_SYSTEM,
+            messages=[{"role": "user", "content": content}],
+        )
+        data = _parse_json(msg.content[0].text)
+        out = data.get("shortened", "").strip()
+        return out or text
+    except Exception:
+        # On any failure, keep the original rather than risk a mangled bullet.
+        return text

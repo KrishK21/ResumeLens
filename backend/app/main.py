@@ -34,7 +34,9 @@ from .document_engine import (
 )
 from .llm import (
     extract_keywords, match_keywords_against_resume, rewrite_bullet,
+    shorten_bullet,
 )
+from .fit_engine import fit_to_one_page, rank_bullets_by_weakness
 from .store import store
 
 settings = get_settings()
@@ -200,6 +202,31 @@ def export(req: ExportRequest):
 
     out_dir = sess.docx_path.parent / "out"
     try:
+        # --- One-page fit (text-only; formatting never changed) ---
+        fit_headers: dict[str, str] = {}
+        if req.one_page:
+            # Compact pre-shrinks everything a touch before measuring; Enhanced
+            # only shortens if the page actually overflows.
+            if req.fit_mode == "compact":
+                for idx in list(final):
+                    budget = max(60, int(len(final[idx]) * 0.85))
+                    final[idx] = shorten_bullet(final[idx], budget)
+
+            weakness = rank_bullets_by_weakness(final)
+            final, fit_report = fit_to_one_page(
+                sess.docx_path, final, out_dir,
+                shorten_fn=shorten_bullet,
+                weakness_rank=weakness,
+                max_shorten_rounds=3,
+                allow_drop=True,
+            )
+            fit_headers = {
+                "X-Fit-Pages": str(fit_report.final_pages),
+                "X-Fit-OnePage": str(fit_report.fits_one_page).lower(),
+                "X-Fit-Shortened": ",".join(map(str, fit_report.shortened_indices)),
+                "X-Fit-Dropped": ",".join(map(str, fit_report.dropped_indices)),
+            }
+
         edited_docx = apply_rewrites(sess.docx_path, final, out_dir / "tailored.docx")
 
         if req.format == "docx":
@@ -207,6 +234,7 @@ def export(req: ExportRequest):
                 str(edited_docx),
                 media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 filename="resume_tailored.docx",
+                headers=fit_headers,
             )
 
         # PDF path: export AND verify the text layer is selectable before returning.
@@ -216,6 +244,7 @@ def export(req: ExportRequest):
             str(pdf),
             media_type="application/pdf",
             filename="resume_tailored.pdf",
+            headers=fit_headers,
         )
     except HTTPException:
         raise

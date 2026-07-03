@@ -126,3 +126,28 @@ def fit_to_one_page(
     report.fits_one_page = pages <= 1
     report.note = "Could not guarantee one page within limits."
     return texts, report
+
+
+# --------------------------------------------------------------------------- #
+#  Weakness ranking (for the last-resort drop)
+# --------------------------------------------------------------------------- #
+
+import re
+
+def rank_bullets_by_weakness(texts: dict[int, str]) -> list[int]:
+    """
+    Return bullet indices ordered weakest-first (best drop candidates first).
+
+    A bullet is 'stronger' (less droppable) when it has more quantified impact
+    (numbers, %, latency, counts) and more distinct capitalized tech terms.
+    This is a heuristic, not a judgment of truth — it only decides drop order
+    when shortening alone can't achieve one page.
+    """
+    def score(text: str) -> float:
+        metrics = len(re.findall(r"\d+\s?%|\d+\s?(?:ms|s|x)\b|\b\d{3,}\b|\d+", text))
+        tech_terms = len(set(re.findall(r"\b[A-Z][A-Za-z0-9+.#]{1,}\b", text)))
+        length_bonus = min(len(text) / 120.0, 2.0)  # longer = usually more content
+        return metrics * 2.0 + tech_terms * 1.0 + length_bonus
+
+    # Weakest first => ascending score.
+    return sorted(texts, key=lambda i: score(texts[i]))

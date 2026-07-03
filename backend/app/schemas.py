@@ -80,3 +80,16 @@ class ExportRequest(BaseModel):
     choices: list[BulletChoice] = Field(default_factory=list)
     # "pdf" | "docx"
     format: str = "pdf"
+    # enforce single-page output
+    one_page: bool = True
+    # "compact" (shorten harder, keep everything) | "enhanced" (allow longer, then fit)
+    fit_mode: str = "enhanced"
+
+
+class ExportMeta(BaseModel):
+    """Sidecar info the UI can read after an export (via response headers)."""
+    final_pages: int
+    fits_one_page: bool
+    shortened_indices: list[int]
+    dropped_indices: list[int]
+    note: str
