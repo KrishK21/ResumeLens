@@ -59,17 +59,21 @@ ResumeLens/
 ├── backend/
 │   ├── app/
 │   │   └── document_engine.py   # ✅ core engine (working)
-│   ├── requirements.txt
-│   ├── .env.example             # template (safe to commit)
-│   └── .env                     # YOUR secrets (gitignored)
-├── frontend/                    # Next.js app (added in Step 5)
+│   │   └── config.py
+│   │   └── main.pu
+│   │   └── schemas.py
+│   │   └── store.py
+│   │   └── LLM.py
+│   ├── requirements.txt        
+│   └── .env                     # secrets (gitignored)
+├── frontend/                    # Next.js app 
 ├── .gitignore                   # keeps secrets & resumes out of git
 └── README.md
 ```
 
 ## Security
 
-- **No secrets in git.** `.env` is gitignored; only `.env.example` is committed.
+- **No secrets in git.** `.env` is gitignored; only
 - **No personal data in git.** `*.docx` / `*.pdf` / `uploads/` are gitignored so
   real resumes (with names, phones, emails) never enter history.
 - API keys are scoped per-project with a spend cap set in the Anthropic Console.
@@ -77,7 +81,7 @@ ResumeLens/
 ## Status
 
 - [x] **Step 2 — Document engine** (bullet swap + selectable-PDF export). Proven.
-- [ ] Step 3 — LLM integration (keyword extraction + bullet rewrite)
+- [x] Step 3 — LLM integration (keyword extraction + bullet rewrite)
 - [ ] Step 4 — FastAPI backend
 - [ ] Step 5 — Next.js UI
 - [ ] Step 6 — Auth, storage, deploy
