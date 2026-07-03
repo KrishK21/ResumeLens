@@ -3,19 +3,22 @@
 import { useState } from "react";
 import { FlowState, FitMode, Tone } from "@/lib/types";
 import { exportResume } from "@/lib/api";
+import { ProfilePrefs } from "@/lib/useProfile";
 import BulletCard, { BulletDecision } from "./BulletCard";
 
 export default function ReviewScreen({
   flow,
+  prefs,
   onStartOver,
 }: {
   flow: FlowState;
+  prefs: ProfilePrefs;
   onStartOver: () => void;
 }) {
   const [mode, setMode] = useState<"auto" | "manual">("auto");
-  const [fitMode, setFitMode] = useState<FitMode>("compact");
-  const [tone, setTone] = useState<Tone>("balanced");
-  const [format, setFormat] = useState<"pdf" | "docx">("pdf");
+  const [fitMode, setFitMode] = useState<FitMode>(prefs.defaultFitMode);
+  const [tone, setTone] = useState<Tone>(prefs.defaultTone);
+  const [format, setFormat] = useState<"pdf" | "docx">(prefs.defaultFormat);
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState("");
   const [showGaps, setShowGaps] = useState(false);

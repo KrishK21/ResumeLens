@@ -1,36 +1,80 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Step, FlowState, emptyFlow } from "@/lib/types";
+import { useProfile } from "@/lib/useProfile";
+import { getSavedResume } from "@/lib/profileApi";
 import Shell from "./components/Shell";
 import EntryScreen from "./components/EntryScreen";
 import ProcessingScreen from "./components/ProcessingScreen";
 import ReviewScreen from "./components/ReviewScreen";
+import ProfileScreen from "./components/ProfileScreen";
+
+type View = Step | "profile";
 
 export default function Home() {
-  const [step, setStep] = useState<Step>("entry");
+  const { profileId, prefs, updatePrefs, loaded } = useProfile();
+  const [view, setView] = useState<View>("entry");
   const [flow, setFlowState] = useState<FlowState>(emptyFlow);
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [error, setError] = useState("");
 
+  // Saved resume status
+  const [savedResumeName, setSavedResumeName] = useState<string | null>(null);
+  const [useSaved, setUseSaved] = useState(false);
+
   const setFlow = (patch: Partial<FlowState>) =>
     setFlowState((prev) => ({ ...prev, ...patch }));
 
+  // On load, seed the default job title and check for a saved resume.
+  useEffect(() => {
+    if (!loaded || !profileId) return;
+    setFlow({ jobTitle: prefs.defaultJobTitle });
+    getSavedResume(profileId).then((s) => {
+      if (s.has_resume) {
+        setSavedResumeName(s.filename);
+        setUseSaved(true); // default to using the saved resume
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, profileId]);
+
   function handleError(msg: string) {
     setError(msg);
-    setStep("entry");
+    setView("entry");
   }
 
   function reset() {
-    setStep("entry");
-    setFlowState(emptyFlow);
+    setView("entry");
+    setFlowState({ ...emptyFlow, jobTitle: prefs.defaultJobTitle });
     setResumeFile(null);
+    setUseSaved(!!savedResumeName);
     setError("");
   }
 
+  function refreshSaved() {
+    if (!profileId) return;
+    getSavedResume(profileId).then((s) => {
+      setSavedResumeName(s.has_resume ? s.filename : null);
+      if (s.has_resume) setUseSaved(true);
+    });
+  }
+
   return (
-    <Shell step={step}>
-      {step === "entry" && (
+    <Shell step={view} onProfileClick={() => setView(view === "profile" ? "entry" : "profile")}>
+      {view === "profile" && (
+        <ProfileScreen
+          profileId={profileId}
+          prefs={prefs}
+          updatePrefs={updatePrefs}
+          onBack={() => {
+            refreshSaved();
+            setView("entry");
+          }}
+        />
+      )}
+
+      {view === "entry" && (
         <>
           {error && (
             <div
@@ -55,25 +99,33 @@ export default function Home() {
               setResumeFile(f);
               setError("");
             }}
+            savedResumeName={savedResumeName}
+            useSaved={useSaved}
+            setUseSaved={setUseSaved}
             onContinue={() => {
               setError("");
-              setStep("processing");
+              setView("processing");
             }}
+            onOpenProfile={() => setView("profile")}
           />
         </>
       )}
 
-      {step === "processing" && (
+      {view === "processing" && (
         <ProcessingScreen
           flow={flow}
           setFlow={setFlow}
           resumeFile={resumeFile}
-          onDone={() => setStep("review")}
+          useSaved={useSaved}
+          profileId={profileId}
+          onDone={() => setView("review")}
           onError={handleError}
         />
       )}
 
-      {step === "review" && <ReviewScreen flow={flow} onStartOver={reset} />}
+      {view === "review" && (
+        <ReviewScreen flow={flow} prefs={prefs} onStartOver={reset} />
+      )}
     </Shell>
   );
 }

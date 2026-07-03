@@ -38,6 +38,7 @@ from .llm import (
 )
 from .fit_engine import fit_to_one_page, rank_bullets_by_weakness
 from .store import store
+from . import profile_store
 
 settings = get_settings()
 
@@ -67,38 +68,42 @@ def health() -> dict:
 
 @app.post("/upload", response_model=UploadResponse)
 async def upload(file: UploadFile = File(...)) -> UploadResponse:
-    # --- validate extension ---
+    data = await _read_upload(file)
+    name = file.filename or "resume.docx"
+    with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp:
+        tmp.write(data)
+        tmp_path = Path(tmp.name)
+    try:
+        return _session_from_docx(tmp_path, name)
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+
+async def _read_upload(file: UploadFile) -> bytes:
+    """Validate + read an uploaded .docx with a hard size cap."""
     name = file.filename or "resume.docx"
     if not name.lower().endswith(".docx"):
         raise HTTPException(400, "Only .docx files are supported right now.")
-
-    # --- read with a hard size cap (defense against huge uploads) ---
     max_bytes = settings.max_upload_mb * 1024 * 1024
     data = await file.read(max_bytes + 1)
     if len(data) > max_bytes:
         raise HTTPException(413, f"File exceeds {settings.max_upload_mb} MB limit.")
     if not data:
         raise HTTPException(400, "Empty file.")
+    return data
 
-    # --- persist to a temp file and parse ---
-    with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp:
-        tmp.write(data)
-        tmp_path = Path(tmp.name)
 
+def _session_from_docx(docx_path: Path, name: str) -> UploadResponse:
+    """Parse a .docx into a session + located bullets (shared by upload & profile)."""
     try:
-        doc = Document(str(tmp_path))
+        doc = Document(str(docx_path))
     except Exception:
-        tmp_path.unlink(missing_ok=True)
         raise HTTPException(400, "Could not read this file as a Word document.")
 
     bullets = find_experience_bullets(doc)
-
-    # --- guard: detect the unsupported-layout case (text boxes / tables) ---
     unsupported = False
     note = ""
     if not bullets:
-        # No list bullets found in body. Likely a text-box/table-based template
-        # (which python-docx cannot edit), or a resume with no bulleted experience.
         unsupported = _likely_unsupported_layout(doc)
         note = (
             "No editable experience bullets were found. If your resume uses text "
@@ -108,9 +113,7 @@ async def upload(file: UploadFile = File(...)) -> UploadResponse:
             "No bulleted experience section was detected."
         )
 
-    sess = store.create(tmp_path, name, bullets)
-    tmp_path.unlink(missing_ok=True)
-
+    sess = store.create(docx_path, name, bullets)
     return UploadResponse(
         session_id=sess.id,
         filename=name,
@@ -118,6 +121,54 @@ async def upload(file: UploadFile = File(...)) -> UploadResponse:
         unsupported_layout=unsupported,
         note=note,
     )
+
+
+# --------------------------------------------------------------------------- #
+#  Profile — saved resume (no auth yet; keyed by a browser profile id)
+# --------------------------------------------------------------------------- #
+
+@app.post("/profile/{profile_id}/resume", response_model=dict)
+async def save_profile_resume(profile_id: str, file: UploadFile = File(...)) -> dict:
+    """Save (or replace) the resume stored on a profile."""
+    data = await _read_upload(file)
+    name = file.filename or "resume.docx"
+    with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp:
+        tmp.write(data)
+        tmp_path = Path(tmp.name)
+    try:
+        # Validate it's a readable docx before saving.
+        _session_from_docx(tmp_path, name)  # raises on bad file
+        profile_store.save_resume(profile_id, tmp_path, name)
+    except ValueError:
+        raise HTTPException(400, "Invalid profile id.")
+    finally:
+        tmp_path.unlink(missing_ok=True)
+    return {"saved": True, "filename": name}
+
+
+@app.get("/profile/{profile_id}/resume", response_model=dict)
+def get_profile_resume(profile_id: str) -> dict:
+    """Check whether the profile has a saved resume."""
+    path = profile_store.get_resume_path(profile_id)
+    if path is None:
+        return {"has_resume": False, "filename": None}
+    return {"has_resume": True, "filename": profile_store.get_resume_filename(profile_id)}
+
+
+@app.delete("/profile/{profile_id}/resume", response_model=dict)
+def delete_profile_resume(profile_id: str) -> dict:
+    profile_store.delete_resume(profile_id)
+    return {"deleted": True}
+
+
+@app.post("/profile/{profile_id}/session", response_model=UploadResponse)
+def session_from_profile(profile_id: str) -> UploadResponse:
+    """Start a tailoring session from the profile's SAVED resume (no re-upload)."""
+    path = profile_store.get_resume_path(profile_id)
+    if path is None:
+        raise HTTPException(404, "No saved resume on this profile.")
+    name = profile_store.get_resume_filename(profile_id) or "resume.docx"
+    return _session_from_docx(path, name)
 
 
 def _likely_unsupported_layout(doc: Document) -> bool:

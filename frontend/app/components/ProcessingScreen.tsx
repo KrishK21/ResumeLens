@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { FlowState } from "@/lib/types";
 import { uploadResume, tailorResume } from "@/lib/api";
+import { sessionFromProfile } from "@/lib/profileApi";
 
 const STEPS = [
   { icon: "▤", label: "Parsing resume structure" },
@@ -16,12 +17,16 @@ export default function ProcessingScreen({
   flow,
   setFlow,
   resumeFile,
+  useSaved,
+  profileId,
   onDone,
   onError,
 }: {
   flow: FlowState;
   setFlow: (f: Partial<FlowState>) => void;
   resumeFile: File | null;
+  useSaved: boolean;
+  profileId: string | null;
   onDone: () => void;
   onError: (msg: string) => void;
 }) {
@@ -35,18 +40,23 @@ export default function ProcessingScreen({
   }, []);
 
   useEffect(() => {
-    // Hard guard: only ever run this once, even across React's dev double-invoke.
     if (started.current) return;
     started.current = true;
 
     (async () => {
       try {
-        if (!resumeFile) throw new Error("No resume uploaded. Go back and add your resume.");
-
-        console.log("[ResumeLens] uploading resume…");
+        console.log("[ResumeLens] starting…");
         setActive(0);
-        const up = await uploadResume(resumeFile);
-        console.log("[ResumeLens] upload result:", up);
+
+        let up;
+        if (useSaved && profileId) {
+          console.log("[ResumeLens] using saved profile resume");
+          up = await sessionFromProfile(profileId);
+        } else {
+          if (!resumeFile) throw new Error("No resume. Go back and add one.");
+          up = await uploadResume(resumeFile);
+        }
+        console.log("[ResumeLens] session result:", up);
 
         if (up.unsupported_layout) {
           throw new Error(
@@ -62,7 +72,6 @@ export default function ProcessingScreen({
         const tailor = await tailorResume(up.session_id, flow.jobDescription);
         console.log("[ResumeLens] tailor result:", tailor);
 
-        // Commit the data to shared state BEFORE advancing to review.
         setFlow({
           sessionId: up.session_id,
           jobTitleDetected: tailor.job_title,
@@ -72,16 +81,12 @@ export default function ProcessingScreen({
         });
         console.log("[ResumeLens] data committed, walking animation…");
 
-        // Visual polish: walk the remaining stages, then finish.
         setActive(2);
         await delay(350);
-        console.log("[ResumeLens] step 3");
         setActive(3);
         await delay(350);
-        console.log("[ResumeLens] step 4");
         setActive(4);
         await delay(350);
-        console.log("[ResumeLens] step 5");
         setActive(STEPS.length);
         await delay(500);
 
@@ -94,7 +99,7 @@ export default function ProcessingScreen({
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // run exactly once on mount
+  }, []);
 
   const progress = Math.round((Math.min(active, STEPS.length) / STEPS.length) * 100);
 

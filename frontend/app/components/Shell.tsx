@@ -2,15 +2,19 @@
 
 import { Step } from "@/lib/types";
 
-const STEP_NUM: Record<Step, number> = { entry: 1, processing: 2, review: 3 };
+const STEP_NUM: Record<string, number> = { entry: 1, processing: 2, review: 3 };
 
 export default function Shell({
   step,
+  onProfileClick,
   children,
 }: {
-  step: Step;
+  step: Step | "profile";
+  onProfileClick?: () => void;
   children: React.ReactNode;
 }) {
+  const isProfile = step === "profile";
+
   return (
     <main
       style={{
@@ -31,7 +35,6 @@ export default function Shell({
           overflow: "hidden",
         }}
       >
-        {/* Header */}
         <div
           style={{
             display: "flex",
@@ -58,31 +61,35 @@ export default function Shell({
             >
               ◎
             </div>
-            <span style={{ fontSize: 15, fontWeight: 500, letterSpacing: "-0.01em" }}>
-              ResumeLens
-            </span>
+            <span style={{ fontSize: 15, fontWeight: 500, letterSpacing: "-0.01em" }}>ResumeLens</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
-            <span style={{ color: "var(--rl-text-muted)", fontSize: 13 }}>
-              Step {STEP_NUM[step]} of 3
-            </span>
-            <div
+            {!isProfile && (
+              <span style={{ color: "var(--rl-text-muted)", fontSize: 13 }}>
+                Step {STEP_NUM[step]} of 3
+              </span>
+            )}
+            <button
+              onClick={onProfileClick}
+              aria-label="Open profile"
               style={{
                 width: 30,
                 height: 30,
                 borderRadius: "50%",
-                background: "var(--rl-surface)",
-                border: "0.5px solid var(--rl-border)",
+                background: isProfile ? "rgba(127,168,140,0.15)" : "var(--rl-surface)",
+                border: `0.5px solid ${isProfile ? "var(--rl-accent)" : "var(--rl-border)"}`,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 color: "var(--rl-accent)",
                 fontSize: 12,
                 fontWeight: 500,
+                cursor: "pointer",
+                fontFamily: "inherit",
               }}
             >
               KK
-            </div>
+            </button>
           </div>
         </div>
 
