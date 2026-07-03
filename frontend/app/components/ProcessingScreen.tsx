@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { FlowState } from "@/lib/types";
+import { uploadResume, tailorResume } from "@/lib/api";
 
 const STEPS = [
   { icon: "▤", label: "Parsing resume structure" },
@@ -13,36 +14,77 @@ const STEPS = [
 
 export default function ProcessingScreen({
   flow,
+  setFlow,
+  resumeFile,
   onDone,
+  onError,
 }: {
   flow: FlowState;
+  setFlow: (f: Partial<FlowState>) => void;
+  resumeFile: File | null;
   onDone: () => void;
+  onError: (msg: string) => void;
 }) {
-  const [active, setActive] = useState(0); // index currently in progress
-  const [done, setDone] = useState(false);
+  const [active, setActive] = useState(0);
   const [pulse, setPulse] = useState(true);
-  const calledDone = useRef(false);
+  const started = useRef(false);
 
-  // Blink the status dot
   useEffect(() => {
     const t = setInterval(() => setPulse((p) => !p), 600);
     return () => clearInterval(t);
   }, []);
 
-  // Advance through steps. (Placeholder timing; wired to the real API next step.)
+  // Kick off the real backend work once.
   useEffect(() => {
-    if (active >= STEPS.length) {
-      setDone(true);
-      if (!calledDone.current) {
-        calledDone.current = true;
-        const t = setTimeout(onDone, 700);
-        return () => clearTimeout(t);
+    if (started.current) return;
+    started.current = true;
+
+    async function run() {
+      try {
+        if (!resumeFile) throw new Error("No resume file. Go back and upload one.");
+
+        // Step 1: upload + parse
+        setActive(0);
+        const up = await uploadResume(resumeFile);
+        if (up.unsupported_layout) {
+          throw new Error(
+            up.note || "That resume layout isn't editable yet. Try a standard Word resume."
+          );
+        }
+        if (up.bullets.length === 0) {
+          throw new Error("No editable experience bullets were found in that resume.");
+        }
+
+        // Steps 2-4: extract keywords + rewrite (one backend call does the heavy lifting)
+        setActive(1);
+        const tailor = await tailorResume(up.session_id, flow.jobDescription);
+
+        // Advance the remaining visual stages so the user sees them complete.
+        setActive(2);
+        await delay(400);
+        setActive(3);
+        await delay(400);
+        setActive(4);
+        await delay(400);
+
+        setFlow({
+          sessionId: up.session_id,
+          jobTitleDetected: tailor.job_title,
+          keywords: tailor.keywords,
+          gaps: tailor.gaps,
+          rewrites: tailor.rewrites,
+        });
+
+        setActive(STEPS.length);
+        await delay(600);
+        onDone();
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Something went wrong.";
+        onError(msg);
       }
-      return;
     }
-    const t = setTimeout(() => setActive((a) => a + 1), 1100);
-    return () => clearTimeout(t);
-  }, [active, onDone]);
+    run();
+  }, [resumeFile, flow.jobDescription, setFlow, onDone, onError]);
 
   const progress = Math.round((Math.min(active, STEPS.length) / STEPS.length) * 100);
 
@@ -86,15 +128,10 @@ export default function ProcessingScreen({
         </span>
       </h1>
 
-      <div
-        style={{
-          fontFamily: "'JetBrains Mono', ui-monospace, monospace",
-          fontSize: 13.5,
-        }}
-      >
+      <div style={{ fontFamily: "'JetBrains Mono', ui-monospace, monospace", fontSize: 13.5 }}>
         {STEPS.map((s, i) => {
           const isDone = i < active;
-          const isActive = i === active && !done;
+          const isActive = i === active && active < STEPS.length;
           const visible = i <= active;
           return (
             <div
@@ -104,8 +141,7 @@ export default function ProcessingScreen({
                 alignItems: "center",
                 gap: 12,
                 padding: "14px 0",
-                borderBottom:
-                  i < STEPS.length - 1 ? "0.5px solid #1A1D17" : "none",
+                borderBottom: i < STEPS.length - 1 ? "0.5px solid #1A1D17" : "none",
                 opacity: visible ? 1 : 0,
                 transition: "opacity 0.5s ease",
               }}
@@ -121,12 +157,7 @@ export default function ProcessingScreen({
               >
                 {s.icon}
               </span>
-              <span
-                style={{
-                  flex: 1,
-                  color: isDone ? "var(--rl-text-dim)" : "#D8D4CC",
-                }}
-              >
+              <span style={{ flex: 1, color: isDone ? "var(--rl-text-dim)" : "#D8D4CC" }}>
                 {s.label}
               </span>
               <span style={{ color: "var(--rl-accent)", minWidth: 20, textAlign: "right" }}>
@@ -158,4 +189,8 @@ export default function ProcessingScreen({
       </div>
     </div>
   );
+}
+
+function delay(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
 }
