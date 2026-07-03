@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { FlowState, FitMode, Tone } from "@/lib/types";
 import { exportResume } from "@/lib/api";
+import BulletCard, { BulletDecision } from "./BulletCard";
 
 export default function ReviewScreen({
   flow,
@@ -11,12 +12,24 @@ export default function ReviewScreen({
   flow: FlowState;
   onStartOver: () => void;
 }) {
+  const [mode, setMode] = useState<"auto" | "manual">("auto");
   const [fitMode, setFitMode] = useState<FitMode>("compact");
   const [tone, setTone] = useState<Tone>("balanced");
   const [format, setFormat] = useState<"pdf" | "docx">("pdf");
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState("");
   const [showGaps, setShowGaps] = useState(false);
+
+  // Per-bullet decisions (manual mode). Default each to the global tone.
+  const [decisions, setDecisions] = useState<Record<number, BulletDecision>>(() => {
+    const init: Record<number, BulletDecision> = {};
+    for (const r of flow.rewrites) init[r.index] = { index: r.index, tone: "balanced" };
+    return init;
+  });
+
+  function updateDecision(d: BulletDecision) {
+    setDecisions((prev) => ({ ...prev, [d.index]: d }));
+  }
 
   async function handleDownload() {
     if (!flow.sessionId) {
@@ -26,15 +39,27 @@ export default function ReviewScreen({
     setDownloading(true);
     setError("");
     try {
+      // Auto mode: no per-bullet choices, backend applies the global tone.
+      // Manual mode: send each bullet's decision.
+      const choices =
+        mode === "manual"
+          ? flow.rewrites.map((r) => {
+              const d = decisions[r.index];
+              return d.tone === "custom"
+                ? { index: r.index, tone: "custom" as const, custom_text: d.customText ?? "" }
+                : { index: r.index, tone: d.tone };
+            })
+          : [];
+
       const blob = await exportResume({
         sessionId: flow.sessionId,
         defaultTone: tone,
-        choices: [], // pass 1 = auto mode; per-bullet choices come in pass 2
+        choices,
         format,
         onePage: fitMode !== "none",
         fitMode: fitMode === "none" ? "enhanced" : fitMode,
       });
-      // Trigger a browser download.
+
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -74,7 +99,58 @@ export default function ReviewScreen({
         Your experience, rephrased to surface what this role scans for.
       </p>
 
-      {/* Fit mode */}
+      {/* Mode toggle */}
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          padding: 4,
+          background: "var(--rl-surface)",
+          border: "0.5px solid var(--rl-border)",
+          borderRadius: 10,
+          marginBottom: 24,
+        }}
+      >
+        {(["auto", "manual"] as const).map((m) => {
+          const selected = mode === m;
+          return (
+            <button
+              key={m}
+              onClick={() => setMode(m)}
+              style={{
+                flex: 1,
+                background: selected ? "rgba(127,168,140,0.12)" : "transparent",
+                border: `1px solid ${selected ? "var(--rl-accent)" : "transparent"}`,
+                borderRadius: 8,
+                padding: "9px 12px",
+                color: selected ? "var(--rl-accent)" : "var(--rl-text-dim)",
+                fontSize: 13.5,
+                fontWeight: 500,
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              {m === "auto" ? "Auto — use best picks" : "Manual — review each bullet"}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Manual mode: per-bullet cards */}
+      {mode === "manual" && (
+        <div style={{ marginBottom: 28 }}>
+          {flow.rewrites.map((r) => (
+            <BulletCard
+              key={r.index}
+              item={r}
+              decision={decisions[r.index]}
+              onChange={updateDecision}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Page fit */}
       <label style={{ display: "block", color: "var(--rl-text-label)", fontSize: 13, marginBottom: 10 }}>
         Page fit
       </label>
@@ -98,7 +174,6 @@ export default function ReviewScreen({
                 padding: "12px 14px",
                 cursor: "pointer",
                 fontFamily: "inherit",
-                transition: "border-color 0.15s ease, background 0.15s ease",
               }}
             >
               <div
@@ -119,11 +194,11 @@ export default function ReviewScreen({
         })}
       </div>
 
-      {/* Tone + format row */}
+      {/* Tone + format */}
       <div style={{ display: "flex", gap: 24, marginBottom: 28 }}>
         <div style={{ flex: 1 }}>
           <label style={{ display: "block", color: "var(--rl-text-label)", fontSize: 13, marginBottom: 10 }}>
-            Rewrite style
+            {mode === "manual" ? "Default style" : "Rewrite style"}
           </label>
           <div style={{ display: "flex", gap: 8 }}>
             {(["conservative", "balanced"] as Tone[]).map((t) => {
@@ -186,32 +261,17 @@ export default function ReviewScreen({
         </div>
       </div>
 
-      {/* Keyword gaps (collapsible) */}
+      {/* Keyword gaps */}
       {flow.gaps.length > 0 && (
-        <div
-          style={{
-            border: "0.5px solid var(--rl-border)",
-            borderRadius: 10,
-            padding: "14px 16px",
-            marginBottom: 28,
-          }}
-        >
+        <div style={{ border: "0.5px solid var(--rl-border)", borderRadius: 10, padding: "14px 16px", marginBottom: 28 }}>
           <div
             onClick={() => setShowGaps((s) => !s)}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              cursor: "pointer",
-            }}
+            style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}
           >
             <span style={{ color: "var(--rl-text)", fontSize: 13.5 }}>
-              {flow.gaps.length} keyword{flow.gaps.length === 1 ? "" : "s"} the job wants that
-              aren&apos;t on your resume
+              {flow.gaps.length} keyword{flow.gaps.length === 1 ? "" : "s"} the job wants that aren&apos;t on your resume
             </span>
-            <span style={{ color: "var(--rl-text-muted)", fontSize: 13 }}>
-              {showGaps ? "Hide" : "Show"}
-            </span>
+            <span style={{ color: "var(--rl-text-muted)", fontSize: 13 }}>{showGaps ? "Hide" : "Show"}</span>
           </div>
           {showGaps && (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 12 }}>
@@ -254,7 +314,6 @@ export default function ReviewScreen({
         </div>
       )}
 
-      {/* Actions */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <button
           onClick={onStartOver}

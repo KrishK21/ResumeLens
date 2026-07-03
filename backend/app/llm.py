@@ -214,7 +214,17 @@ _REWRITE_SYSTEM = (
     "2. Never add a number/percentage/dollar figure that isn't already there.\n"
     "3. Only incorporate a target keyword if it TRUTHFULLY describes what the "
     "original bullet already says. If a keyword doesn't fit, leave it out.\n"
-    "4. Keep it a single concise bullet, action-verb first, similar length."
+    "4. Keep it a single concise bullet, action-verb first, similar length.\n\n"
+    "READABILITY RULES (a human recruiter reads this too — keyword-stuffing "
+    "gets resumes rejected):\n"
+    "5. A bullet must read naturally to a person. At most 1-2 target keywords per "
+    "bullet — never cram in three or more just because they fit.\n"
+    "6. Do NOT repeat the same keyword phrase (e.g. 'systems design', 'backend', "
+    "'full stack') across many bullets. If a phrase already appears elsewhere, "
+    "prefer a natural synonym or leave it out here.\n"
+    "7. Never bolt a keyword onto the end as filler (e.g. '...contributing to "
+    "backend development infrastructure'). If it doesn't flow, drop it.\n"
+    "8. When in doubt, favor a clean, believable bullet over one more keyword."
 )
 
 _REWRITE_INSTRUCTIONS = """Rewrite this resume bullet two ways for the target keywords.
