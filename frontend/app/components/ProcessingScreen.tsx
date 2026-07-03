@@ -34,39 +34,35 @@ export default function ProcessingScreen({
     return () => clearInterval(t);
   }, []);
 
-  // Kick off the real backend work once.
   useEffect(() => {
+    // Hard guard: only ever run this once, even across React's dev double-invoke.
     if (started.current) return;
     started.current = true;
 
-    async function run() {
+    (async () => {
       try {
-        if (!resumeFile) throw new Error("No resume file. Go back and upload one.");
+        if (!resumeFile) throw new Error("No resume uploaded. Go back and add your resume.");
 
-        // Step 1: upload + parse
+        console.log("[ResumeLens] uploading resume…");
         setActive(0);
         const up = await uploadResume(resumeFile);
+        console.log("[ResumeLens] upload result:", up);
+
         if (up.unsupported_layout) {
           throw new Error(
             up.note || "That resume layout isn't editable yet. Try a standard Word resume."
           );
         }
-        if (up.bullets.length === 0) {
+        if (!up.bullets || up.bullets.length === 0) {
           throw new Error("No editable experience bullets were found in that resume.");
         }
 
-        // Steps 2-4: extract keywords + rewrite (one backend call does the heavy lifting)
+        console.log("[ResumeLens] tailoring…");
         setActive(1);
         const tailor = await tailorResume(up.session_id, flow.jobDescription);
+        console.log("[ResumeLens] tailor result:", tailor);
 
-        // Advance the remaining visual stages so the user sees them complete.
-        setActive(2);
-        await delay(400);
-        setActive(3);
-        await delay(400);
-        setActive(4);
-        await delay(400);
-
+        // Commit the data to shared state BEFORE advancing to review.
         setFlow({
           sessionId: up.session_id,
           jobTitleDetected: tailor.job_title,
@@ -74,17 +70,31 @@ export default function ProcessingScreen({
           gaps: tailor.gaps,
           rewrites: tailor.rewrites,
         });
+        console.log("[ResumeLens] data committed, walking animation…");
 
+        // Visual polish: walk the remaining stages, then finish.
+        setActive(2);
+        await delay(350);
+        console.log("[ResumeLens] step 3");
+        setActive(3);
+        await delay(350);
+        console.log("[ResumeLens] step 4");
+        setActive(4);
+        await delay(350);
+        console.log("[ResumeLens] step 5");
         setActive(STEPS.length);
-        await delay(600);
+        await delay(500);
+
+        console.log("[ResumeLens] done, moving to review");
         onDone();
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Something went wrong.";
+        console.error("[ResumeLens] processing error:", msg);
         onError(msg);
       }
-    }
-    run();
-  }, [resumeFile, flow.jobDescription, setFlow, onDone, onError]);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // run exactly once on mount
 
   const progress = Math.round((Math.min(active, STEPS.length) / STEPS.length) * 100);
 
