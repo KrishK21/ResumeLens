@@ -58,28 +58,38 @@ def fit_to_one_page(
     src_docx: Path,
     bullet_texts: dict[int, str],
     work_dir: Path,
-    shorten_fn,                       # callable(text, target_chars) -> str  (LLM)
-    weakness_rank: list[int],         # bullet indices, weakest-first (for dropping)
+    shorten_fn=None,                  # single-bullet shortener (fallback)
+    shorten_many_fn=None,             # batch/parallel shortener (preferred)
+    weakness_rank: list[int] = None,  # bullet indices, weakest-first (for dropping)
     max_shorten_rounds: int = 3,
     allow_drop: bool = True,
 ) -> tuple[dict[int, str], FitReport]:
     """
     Mutate ``bullet_texts`` (index -> text) until the rendered doc is one page.
 
-    ``shorten_fn`` is injected so this module stays LLM-agnostic and unit-testable
-    (tests pass a deterministic shortener; production passes the Claude call).
-    ``weakness_rank`` lists bullet indices weakest-first; when shortening isn't
-    enough, the weakest remaining bullet is dropped.
+    Prefers ``shorten_many_fn`` (parallel) for speed; falls back to
+    ``shorten_fn`` (sequential) if only that is provided. ``weakness_rank``
+    lists bullet indices weakest-first for the last-resort drop.
 
     Returns the final text map and a FitReport describing what changed.
     """
     work_dir.mkdir(parents=True, exist_ok=True)
     texts = dict(bullet_texts)
+    weakness_rank = weakness_rank or []
     report = FitReport(final_pages=0, fits_one_page=False)
 
     def render_and_count(current: dict[int, str]) -> int:
         apply_rewrites(src_docx, current, work_dir / "fit.docx")
         return measure_pages(work_dir / "fit.docx", work_dir)
+
+    def shorten_batch(targets: list[tuple[int, str, int]]) -> dict[int, str]:
+        if shorten_many_fn is not None:
+            return shorten_many_fn(targets)
+        # Sequential fallback.
+        out = {}
+        for idx, text, target in targets:
+            out[idx] = shorten_fn(text, target) if shorten_fn else text
+        return out
 
     pages = render_and_count(texts)
     if pages <= 1:
@@ -88,14 +98,18 @@ def fit_to_one_page(
         report.note = "Already fits one page."
         return texts, report
 
-    # --- Phase 1: shorten longest bullets, text-only ---
+    # --- Phase 1: shorten longest bullets, in parallel batches ---
     for _ in range(max_shorten_rounds):
         report.rounds += 1
-        # Target the longest few bullets each round.
-        longest = sorted(texts, key=lambda i: len(texts[i]), reverse=True)[:3]
-        for idx in longest:
-            target = max(60, int(len(texts[idx]) * 0.75))  # ~25% shorter, floor 60 chars
-            texts[idx] = shorten_fn(texts[idx], target)
+        # Target the longest few bullets each round (shorten them together).
+        longest = sorted(texts, key=lambda i: len(texts[i]), reverse=True)[:4]
+        batch = [
+            (idx, texts[idx], max(60, int(len(texts[idx]) * 0.75)))
+            for idx in longest
+        ]
+        shortened = shorten_batch(batch)
+        for idx, new_text in shortened.items():
+            texts[idx] = new_text
             if idx not in report.shortened_indices:
                 report.shortened_indices.append(idx)
         pages = render_and_count(texts)

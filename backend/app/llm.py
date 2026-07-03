@@ -339,3 +339,72 @@ def shorten_bullet(text: str, target_chars: int) -> str:
     except Exception:
         # On any failure, keep the original rather than risk a mangled bullet.
         return text
+
+
+# --------------------------------------------------------------------------- #
+#  Parallel + cached shortening (speeds up the one-page fit loop)
+# --------------------------------------------------------------------------- #
+
+from concurrent.futures import ThreadPoolExecutor
+
+# Simple in-process cache: (text, target_bucket) -> shortened text.
+# Keeps re-downloads with the same content near-instant.
+_shorten_cache: dict[tuple[str, int], str] = {}
+
+
+def _cache_key(text: str, target: int) -> tuple[str, int]:
+    # Bucket the target so near-identical requests share a cache entry.
+    return (text, (target // 20) * 20)
+
+
+def shorten_bullet_cached(text: str, target_chars: int) -> str:
+    """shorten_bullet with an in-process cache."""
+    if len(text) <= target_chars:
+        return text
+    key = _cache_key(text, target_chars)
+    hit = _shorten_cache.get(key)
+    if hit is not None:
+        return hit
+    out = shorten_bullet(text, target_chars)
+    _shorten_cache[key] = out
+    return out
+
+
+def shorten_many(items: list[tuple[int, str, int]]) -> dict[int, str]:
+    """
+    Shorten multiple bullets CONCURRENTLY.
+
+    items: list of (index, text, target_chars).
+    Returns {index: shortened_text}. Uses the cache and runs the LLM calls
+    in parallel threads (the Anthropic client releases the GIL on network I/O,
+    so threads give real speedup here).
+    """
+    results: dict[int, str] = {}
+    to_run: list[tuple[int, str, int]] = []
+
+    for idx, text, target in items:
+        if len(text) <= target:
+            results[idx] = text
+            continue
+        cached = _shorten_cache.get(_cache_key(text, target))
+        if cached is not None:
+            results[idx] = cached
+        else:
+            to_run.append((idx, text, target))
+
+    if to_run:
+        with ThreadPoolExecutor(max_workers=min(8, len(to_run))) as pool:
+            futures = {
+                pool.submit(shorten_bullet, text, target): (idx, text, target)
+                for idx, text, target in to_run
+            }
+            for fut in futures:
+                idx, text, target = futures[fut]
+                try:
+                    out = fut.result()
+                except Exception:
+                    out = text  # keep original on failure
+                results[idx] = out
+                _shorten_cache[_cache_key(text, target)] = out
+
+    return results

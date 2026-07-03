@@ -34,7 +34,7 @@ from .document_engine import (
 )
 from .llm import (
     extract_keywords, match_keywords_against_resume, rewrite_bullet,
-    shorten_bullet,
+    shorten_bullet, shorten_many,
 )
 from .fit_engine import fit_to_one_page, rank_bullets_by_weakness
 from .store import store
@@ -256,19 +256,17 @@ def export(req: ExportRequest):
         # --- One-page fit (text-only; formatting never changed) ---
         fit_headers: dict[str, str] = {}
         if req.one_page:
-            # Compact pre-shrinks everything a touch before measuring; Enhanced
-            # only shortens if the page actually overflows.
-            if req.fit_mode == "compact":
-                for idx in list(final):
-                    budget = max(60, int(len(final[idx]) * 0.85))
-                    final[idx] = shorten_bullet(final[idx], budget)
-
+            # Compact aims for a tighter target so the fit loop shortens more,
+            # but we no longer pre-shrink every bullet upfront (that was slow).
+            # The fit loop only shortens bullets that actually cause overflow,
+            # now in parallel batches for speed.
+            rounds = 4 if req.fit_mode == "compact" else 3
             weakness = rank_bullets_by_weakness(final)
             final, fit_report = fit_to_one_page(
                 sess.docx_path, final, out_dir,
-                shorten_fn=shorten_bullet,
+                shorten_many_fn=shorten_many,
                 weakness_rank=weakness,
-                max_shorten_rounds=3,
+                max_shorten_rounds=rounds,
                 allow_drop=True,
             )
             fit_headers = {
