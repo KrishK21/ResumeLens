@@ -7,43 +7,45 @@
 
 :root {
   /* Surfaces */
-  --rl-bg: #0E0E10;          /* page / walls */
-  --rl-surface: #16161A;     /* raised panels, inputs */
-  --rl-border: #23261F;      /* hairline (warm-dark) */
+  --rl-bg: #0E0E10;
+  --rl-surface: #16161A;
+  --rl-border: #23261F;
   --rl-border-hover: #333830;
 
   /* Text */
-  --rl-text: #EDE9E3;        /* warm off-white */
-  --rl-text-dim: #8A8A92;    /* secondary */
-  --rl-text-muted: #6A6A72;  /* hints */
-  --rl-text-label: #B8B4AC;  /* field labels */
+  --rl-text: #EDE9E3;
+  --rl-text-dim: #8A8A92;
+  --rl-text-muted: #6A6A72;
+  --rl-text-label: #B8B4AC;
 
   /* Accent — sage */
   --rl-accent: #7FA88C;
   --rl-accent-hover: #8FB89C;
   --rl-accent-dim: #8A9284;
   --rl-on-accent: #0E0E10;
+
+  /* Fonts (from next/font) */
+  --rl-font-body: var(--font-inter), system-ui, sans-serif;
+  --rl-font-display: var(--font-display), Georgia, serif;
+  --rl-font-mono: var(--font-mono), ui-monospace, monospace;
 }
 
 html, body {
   background: var(--rl-bg);
   color: var(--rl-text);
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: var(--rl-font-body);
   margin: 0;
   padding: 0;
   min-height: 100vh;
 }
 
-/* Smooth focus ring in sage, accessible */
 :focus-visible {
   outline: 2px solid var(--rl-accent);
   outline-offset: 2px;
 }
 
-/* Placeholder color */
 ::placeholder { color: var(--rl-text-muted); }
 
-/* Respect reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

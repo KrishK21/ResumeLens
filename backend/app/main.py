@@ -283,7 +283,11 @@ def export(req: ExportRequest):
                 str(edited_docx),
                 media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 filename="resume_tailored.docx",
-                headers=fit_headers,
+                headers={
+                    **fit_headers,
+                    # Force a download, never an inline preview.
+                    "Content-Disposition": 'attachment; filename="resume_tailored.docx"',
+                },
             )
 
         # PDF path: export AND verify the text layer is selectable before returning.
@@ -293,7 +297,12 @@ def export(req: ExportRequest):
             str(pdf),
             media_type="application/pdf",
             filename="resume_tailored.pdf",
-            headers=fit_headers,
+            headers={
+                **fit_headers,
+                # Force a download, never an inline browser preview (which on
+                # some Chrome/Windows setups can auto-open a print prompt).
+                "Content-Disposition": 'attachment; filename="resume_tailored.pdf"',
+            },
         )
     except HTTPException:
         raise

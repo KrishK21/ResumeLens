@@ -5,16 +5,17 @@ import { Step, FlowState, emptyFlow } from "@/lib/types";
 import { useProfile } from "@/lib/useProfile";
 import { getSavedResume } from "@/lib/profileApi";
 import Shell from "./components/Shell";
+import LandingScreen from "./components/LandingScreen";
 import EntryScreen from "./components/EntryScreen";
 import ProcessingScreen from "./components/ProcessingScreen";
 import ReviewScreen from "./components/ReviewScreen";
 import ProfileScreen from "./components/ProfileScreen";
 
-type View = Step | "profile";
+type View = Step | "profile" | "landing";
 
 export default function Home() {
   const { profileId, prefs, updatePrefs, loaded } = useProfile();
-  const [view, setView] = useState<View>("entry");
+  const [view, setView] = useState<View>("landing");
   const [flow, setFlowState] = useState<FlowState>(emptyFlow);
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [error, setError] = useState("");
@@ -58,6 +59,33 @@ export default function Home() {
       setSavedResumeName(s.has_resume ? s.filename : null);
       if (s.has_resume) setUseSaved(true);
     });
+  }
+
+  if (view === "landing") {
+    return (
+      <main
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "2rem",
+        }}
+      >
+        <div
+          style={{
+            width: "100%",
+            maxWidth: 760,
+            background: "var(--rl-bg)",
+            border: "0.5px solid var(--rl-border)",
+            borderRadius: 16,
+            overflow: "hidden",
+          }}
+        >
+          <LandingScreen onStart={() => setView("entry")} onSignIn={() => setView("entry")} />
+        </div>
+      </main>
+    );
   }
 
   return (

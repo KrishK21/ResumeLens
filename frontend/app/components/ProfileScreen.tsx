@@ -197,9 +197,13 @@ export default function ProfileScreen({
       </p>
 
       {/* Preferences */}
-      <label style={{ display: "block", color: "var(--rl-text-label)", fontSize: 13, marginBottom: 10 }}>
+      <label style={{ display: "block", color: "var(--rl-text-label)", fontSize: 13, marginBottom: 4 }}>
         Default page fit
       </label>
+      <p style={{ color: "var(--rl-text-muted)", fontSize: 11.5, margin: "0 0 10px", lineHeight: 1.5 }}>
+        Compact fits everything on one page with shorter bullets. Enhanced keeps bullets fuller and
+        trims only if they overflow. No limit lets the resume run its natural length.
+      </p>
       <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
         {([["compact", "Compact"], ["enhanced", "Enhanced"], ["none", "No limit"]] as [FitMode, string][]).map(
           ([val, label]) => {
@@ -219,9 +223,13 @@ export default function ProfileScreen({
 
       <div style={{ display: "flex", gap: 24 }}>
         <div style={{ flex: 1 }}>
-          <label style={{ display: "block", color: "var(--rl-text-label)", fontSize: 13, marginBottom: 10 }}>
+          <label style={{ display: "block", color: "var(--rl-text-label)", fontSize: 13, marginBottom: 4 }}>
             Default style
           </label>
+          <p style={{ color: "var(--rl-text-muted)", fontSize: 11.5, margin: "0 0 10px", lineHeight: 1.5 }}>
+            Conservative sticks close to your original wording. Balanced rephrases more freely to work
+            in keywords — still only what&apos;s true.
+          </p>
           <div style={{ display: "flex", gap: 8 }}>
             {(["conservative", "balanced"] as Tone[]).map((t) => (
               <button key={t} onClick={() => updatePrefs({ defaultTone: t })} style={pillStyle(prefs.defaultTone === t)}>
@@ -231,9 +239,12 @@ export default function ProfileScreen({
           </div>
         </div>
         <div style={{ flex: 1 }}>
-          <label style={{ display: "block", color: "var(--rl-text-label)", fontSize: 13, marginBottom: 10 }}>
+          <label style={{ display: "block", color: "var(--rl-text-label)", fontSize: 13, marginBottom: 4 }}>
             Default format
           </label>
+          <p style={{ color: "var(--rl-text-muted)", fontSize: 11.5, margin: "0 0 10px", lineHeight: 1.5 }}>
+            PDF is best for submitting. DOCX stays editable in Word.
+          </p>
           <div style={{ display: "flex", gap: 8 }}>
             {(["pdf", "docx"] as ("pdf" | "docx")[]).map((f) => (
               <button key={f} onClick={() => updatePrefs({ defaultFormat: f })} style={pillStyle(prefs.defaultFormat === f)}>

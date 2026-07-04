@@ -1,5 +1,6 @@
 "use client";
 
+import { Focus } from "lucide-react";
 import { Step } from "@/lib/types";
 
 const STEP_NUM: Record<string, number> = { entry: 1, processing: 2, review: 3 };
@@ -9,7 +10,7 @@ export default function Shell({
   onProfileClick,
   children,
 }: {
-  step: Step | "profile";
+  step: Step | "profile" | "landing";
   onProfileClick?: () => void;
   children: React.ReactNode;
 }) {
@@ -54,12 +55,9 @@ export default function Shell({
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                color: "var(--rl-on-accent)",
-                fontWeight: 700,
-                fontSize: 15,
               }}
             >
-              ◎
+              <Focus size={15} color="var(--rl-on-accent)" strokeWidth={2.5} />
             </div>
             <span style={{ fontSize: 15, fontWeight: 500, letterSpacing: "-0.01em" }}>ResumeLens</span>
           </div>

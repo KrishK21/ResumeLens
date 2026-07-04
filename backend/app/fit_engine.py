@@ -30,10 +30,22 @@ from .document_engine import apply_rewrites, docx_to_pdf
 # --------------------------------------------------------------------------- #
 
 def measure_pages(docx_path: Path, work_dir: Path) -> int:
-    """Render the docx to PDF and return the page count."""
+    """Render the docx to PDF and return the page count (accurate but slow)."""
     pdf = docx_to_pdf(docx_path, work_dir)
     with pdfplumber.open(str(pdf)) as p:
         return len(p.pages)
+
+
+def estimate_overflow(bullet_texts: dict[int, str], baseline_chars: int) -> bool:
+    """
+    Fast heuristic: does the current total bullet length exceed what fit on one
+    page at baseline? Avoids launching LibreOffice on every fit-loop iteration
+    (each launch costs 1-3s). We calibrate `baseline_chars` from the first real
+    render, then use cheap character counting to decide whether to keep
+    shortening — only re-rendering with LibreOffice to CONFIRM at the end.
+    """
+    total = sum(len(t) for t in bullet_texts.values())
+    return total > baseline_chars
 
 
 # --------------------------------------------------------------------------- #
@@ -98,10 +110,17 @@ def fit_to_one_page(
         report.note = "Already fits one page."
         return texts, report
 
-    # --- Phase 1: shorten longest bullets, in parallel batches ---
+    # Calibrate a character budget from the overflowing baseline: we know the
+    # CURRENT total overflows, so target a reduction. We shorten until the
+    # estimated total drops enough, then render ONCE to confirm — avoiding a
+    # slow LibreOffice launch on every iteration.
+    baseline_total = sum(len(t) for t in texts.values())
+    # Aim to shave ~15% of total text to pull one line-group off the page.
+    target_total = int(baseline_total * 0.85)
+
+    # --- Phase 1: shorten longest bullets, in parallel batches (no re-render) ---
     for _ in range(max_shorten_rounds):
         report.rounds += 1
-        # Target the longest few bullets each round (shorten them together).
         longest = sorted(texts, key=lambda i: len(texts[i]), reverse=True)[:4]
         batch = [
             (idx, texts[idx], max(60, int(len(texts[idx]) * 0.75)))
@@ -112,12 +131,26 @@ def fit_to_one_page(
             texts[idx] = new_text
             if idx not in report.shortened_indices:
                 report.shortened_indices.append(idx)
-        pages = render_and_count(texts)
-        if pages <= 1:
-            report.final_pages = pages
-            report.fits_one_page = True
-            report.note = "Fit one page by shortening text only."
-            return texts, report
+
+        current_total = sum(len(t) for t in texts.values())
+        if current_total <= target_total:
+            # Estimated to fit now — confirm with ONE real render.
+            pages = render_and_count(texts)
+            if pages <= 1:
+                report.final_pages = pages
+                report.fits_one_page = True
+                report.note = "Fit one page by shortening text only."
+                return texts, report
+            # Didn't actually fit — lower the target and keep going.
+            target_total = int(current_total * 0.9)
+
+    # Final confirm render after all shorten rounds.
+    pages = render_and_count(texts)
+    if pages <= 1:
+        report.final_pages = pages
+        report.fits_one_page = True
+        report.note = "Fit one page by shortening text only."
+        return texts, report
 
     # --- Phase 2: drop weakest bullets one at a time ---
     if allow_drop:
